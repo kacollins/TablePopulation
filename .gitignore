@@ -1,3 +1,4 @@
 TablePopulation/bin/Debug/
 TablePopulation/obj/Debug/
 *.supersecret
+connections.config
