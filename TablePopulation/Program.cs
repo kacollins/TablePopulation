@@ -46,9 +46,21 @@ namespace TablePopulation
 
             List<string> fileLines = new List<string>();
 
+            if (table.HasIdentity)
+            {
+                fileLines.Add($"SET IDENTITY_INSERT {table.SchemaName}.{table.TableName} ON");
+                fileLines.Add("");
+            }
+
             foreach (DataRow row in rows)
             {
                 fileLines.AddRange(GetInsertScript(row, columns, table));
+            }
+
+            if (table.HasIdentity)
+            {
+                fileLines.Add($"SET IDENTITY_INSERT {table.SchemaName}.{table.TableName} OFF");
+                fileLines.Add("");
             }
 
             string fileName = $"{table.SchemaName}_{table.TableName}";
@@ -242,11 +254,14 @@ namespace TablePopulation
         {
             public string SchemaName { get; }
             public string TableName { get; }
+            public string IdentityFlag { get; }
+            public bool HasIdentity => IdentityFlag == "1";
 
-            public Table(string schemaName, string tableName)
+            public Table(string schemaName, string tableName, string identityFlag = "1")
             {
                 SchemaName = schemaName;
                 TableName = tableName;
+                IdentityFlag = identityFlag;
             }
         }
 
