@@ -14,12 +14,27 @@ namespace TablePopulation
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Enter table name:");
-            string tableName = Console.ReadLine();
+            TableFileResult result = GetTablesToPopulate();
 
-            string queryText = $"SELECT * FROM {tableName}";
-            DataTable dt = GetDataTable(queryText);
-            Console.WriteLine(dt);
+            if (result.Tables.Any())
+            {
+                foreach (Table table in result.Tables)
+                {
+                    string queryText = $"SELECT * FROM {table.SchemaName}.{table.TableName}";
+                    DataTable dt = GetDataTable(queryText);
+                    Console.WriteLine($"{table.SchemaName}.{table.TableName} has {dt.Rows.Count} rows.");
+                }
+            }
+
+            if (result.Errors.Any())
+            {
+                HandleTopLevelError(AppendLines(result.Errors), false);
+            }
+            else if (!result.Tables.Any())
+            {
+                HandleTopLevelError("No tables to compare!");
+            }
+
 
             Console.WriteLine("Press enter to exit:");
             Console.Read();
