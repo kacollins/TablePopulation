@@ -98,7 +98,19 @@ namespace TablePopulation
 
         private static string GetColumnValue(DataRow row, DataColumn column)
         {
-            return row[column].ToString().Replace("'", "''");
+            string input = row[column].ToString();
+            string output;
+
+            if (column.DataType == typeof(bool))
+            {
+                output = Convert.ToInt32(bool.Parse(input)).ToString();
+            }
+            else
+            {
+                output = input.Replace("'", "''");
+            }
+
+            return output;
         }
 
         #region Methods
