@@ -53,8 +53,59 @@ namespace TablePopulation
 
             return dt;
         }
-        
+
         #endregion
-        
+
+        #region Properties
+
+        //In LINQPad: private static string CurrentDirectory => Path.GetDirectoryName(Util.CurrentQueryPath);
+        private static string CurrentDirectory => Directory.GetCurrentDirectory();  //bin\Debug
+
+        #endregion
+
+        #region Classes
+
+        private class Table
+        {
+            public string SchemaName { get; }
+            public string TableName { get; }
+
+            public Table(string schemaName, string tableName)
+            {
+                SchemaName = schemaName;
+                TableName = tableName;
+            }
+        }
+
+        private class TableFileResult
+        {
+            public List<Table> Tables { get; }
+            public List<string> Errors { get; }
+
+            public TableFileResult(List<Table> tables, List<string> errors)
+            {
+                Tables = tables;
+                Errors = errors;
+            }
+        }
+
+        #endregion
+
+        #region Enums
+
+        private enum TablePart
+        {
+            SchemaName,
+            TableName
+        }
+
+        private enum Folder
+        {
+            Inputs,
+            Outputs
+        }
+
+        #endregion
+
     }
 }
