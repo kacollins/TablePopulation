@@ -2,12 +2,10 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
-using System.Data.Common;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace TablePopulation
 {
@@ -33,7 +31,6 @@ namespace TablePopulation
             {
                 HandleTopLevelError("No tables to compare!");
             }
-
 
             Console.WriteLine("Press enter to exit:");
             Console.Read();
@@ -67,9 +64,9 @@ namespace TablePopulation
 
         private static List<string> GetInsertScript(DataRow row, List<DataColumn> columns, Table table)
         {
-            List<string> scriptLines = new List<string> { };
+            List<string> scriptLines = new List<string>();
 
-            scriptLines.Add("IF NOT EXISTS (SELECT 1");
+            scriptLines.Add("IF NOT EXISTS (SELECT *");
             scriptLines.Add($"{Tab}{Tab}{Tab}{Tab}FROM {table.SchemaName}.{table.TableName}");
             scriptLines.Add($"{Tab}{Tab}{Tab}{Tab}WHERE {columns.First().ColumnName} = {row[0]})");
 
@@ -81,10 +78,15 @@ namespace TablePopulation
             scriptLines.Add("SELECT");
 
             scriptLines.Add($"{Tab}{columns.First().ColumnName} = {row[0]}");
-            scriptLines.AddRange(columns.Skip(1).Select(column => $"{Tab}, {column.ColumnName} = '{row[column]}'"));
+            scriptLines.AddRange(columns.Skip(1).Select(column => $"{Tab}, {column.ColumnName} = '{GetColumnValue(row, column)}'"));
             scriptLines.Add("");
 
             return scriptLines;
+        }
+
+        private static string GetColumnValue(DataRow row, DataColumn column)
+        {
+            return row[column].ToString().Replace("'", "''");
         }
 
         #region Methods
