@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
+using System.Data.Common;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
@@ -42,11 +43,16 @@ namespace TablePopulation
         {
             string queryText = $"SELECT * FROM {table.SchemaName}.{table.TableName}";
             DataTable dt = GetDataTable(queryText);
-            Console.WriteLine($"{table.SchemaName}.{table.TableName} has {dt.Rows.Count} rows.");
 
-            //TODO: Validate that ID is unique integer
+            List<DataRow> rows = dt.Rows.Cast<DataRow>().OrderBy(r => r.ItemArray[0]).ToList();
+            List<DataColumn> columns = dt.Columns.Cast<DataColumn>().ToList();
 
-            List<string> fileLines = (from DataRow row in dt.Rows select $"--TODO: Insert record for ID = {GetID(row)}").ToList();
+            List<string> fileLines = new List<string>();
+
+            foreach (DataRow row in rows)
+            {
+                fileLines.AddRange(GetInsertScript(row, columns, table));
+            }
 
             string fileName = $"{table.SchemaName}_{table.TableName}";
             string fileContents = AppendLines(fileLines);
@@ -59,9 +65,21 @@ namespace TablePopulation
             WriteToFile(fileName, fileContents);
         }
 
-        private static int GetID(DataRow dr)
+        private static List<string> GetInsertScript(DataRow row, List<DataColumn> columns, Table table)
         {
-            return int.Parse(dr.ItemArray[0].ToString());
+            List<string> scriptLines = new List<string> { $"INSERT INTO {table.SchemaName}.{table.TableName}" };
+            
+            scriptLines.Add("(");
+            scriptLines.Add($"{Tab}{columns.First().ColumnName}");
+            scriptLines.AddRange(columns.Skip(1).Select(column => $"{Tab}, {column.ColumnName}"));
+            scriptLines.Add(")");
+            scriptLines.Add("SELECT");
+
+            scriptLines.Add($"{Tab}{columns.First().ColumnName} = '{row[0]}'");
+            scriptLines.AddRange(columns.Skip(1).Select(column => $"{Tab}, {column.ColumnName} = '{row[column]}'"));
+            scriptLines.Add("");
+
+            return scriptLines;
         }
 
         #region Methods
@@ -206,6 +224,8 @@ namespace TablePopulation
 
         //In LINQPad: private static string CurrentDirectory => Path.GetDirectoryName(Util.CurrentQueryPath);
         private static string CurrentDirectory => Directory.GetCurrentDirectory();  //bin\Debug
+
+        private static string Tab => new string(' ', 4);
 
         #endregion
 
