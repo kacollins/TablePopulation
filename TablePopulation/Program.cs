@@ -20,9 +20,7 @@ namespace TablePopulation
             {
                 foreach (Table table in result.Tables)
                 {
-                    string queryText = $"SELECT * FROM {table.SchemaName}.{table.TableName}";
-                    DataTable dt = GetDataTable(queryText);
-                    Console.WriteLine($"{table.SchemaName}.{table.TableName} has {dt.Rows.Count} rows.");
+                    GenerateInsertScripts(table);
                 }
             }
 
@@ -38,6 +36,32 @@ namespace TablePopulation
 
             Console.WriteLine("Press enter to exit:");
             Console.Read();
+        }
+
+        private static void GenerateInsertScripts(Table table)
+        {
+            string queryText = $"SELECT * FROM {table.SchemaName}.{table.TableName}";
+            DataTable dt = GetDataTable(queryText);
+            Console.WriteLine($"{table.SchemaName}.{table.TableName} has {dt.Rows.Count} rows.");
+
+            //TODO: Validate that ID is unique integer
+
+            List<string> fileLines = (from DataRow row in dt.Rows select $"--TODO: Insert record for ID = {GetID(row)}").ToList();
+
+            string fileName = $"{table.SchemaName}_{table.TableName}";
+            string fileContents = AppendLines(fileLines);
+
+            if (string.IsNullOrWhiteSpace(fileContents))
+            {
+                fileContents = "--No records to insert";
+            }
+
+            WriteToFile(fileName, fileContents);
+        }
+
+        private static int GetID(DataRow dr)
+        {
+            return int.Parse(dr.ItemArray[0].ToString());
         }
 
         #region Methods
