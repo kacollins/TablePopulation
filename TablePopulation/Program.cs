@@ -36,6 +36,8 @@ namespace TablePopulation
             Console.Read();
         }
 
+        #region Methods
+
         private static void GenerateInsertScripts(Table table)
         {
             string queryText = $"SELECT * FROM {table.SchemaName}.{table.TableName}";
@@ -113,22 +115,32 @@ namespace TablePopulation
             return output;
         }
 
-        #region Methods
-
         private static TableFileResult GetTablesToPopulate()
         {
             string fileName = "TablesToPopulate.supersecret";
 
             List<string> lines = GetFileLines(fileName);
-            const char separator = '.';
+            const char comma = ',';
 
-            List<Table> tablesToPopulate = lines.Where(line => line.Split(separator).Length == Enum.GetValues(typeof(TablePart)).Length)
-                                                .Select(validLine => validLine.Split(separator))
-                                                .Select(parts => new Table(parts[(int)TablePart.SchemaName],
-                                                                            parts[(int)TablePart.TableName]))
+            var fileLines = lines.Select(line => line.Split(comma))
+                                                .Select(parts => new
+                                                {
+                                                    TableName = parts[0],
+                                                    Identity = parts.Length == 1 //assume identity if not specified
+                                                            || (parts.Length == 2 && parts[1] == Convert.ToInt32(true).ToString())
+                                                })
                                                 .ToList();
 
-            List<string> errorMessages = GetFileErrors(lines, separator, Enum.GetValues(typeof(TablePart)).Length, "schema/table format");
+            const char period = '.';
+
+            List<Table> tablesToPopulate = fileLines.Select(line => new { TableParts = line.TableName.Split(period), line.Identity })
+                                                                    .Where(x => x.TableParts.Length == Enum.GetValues(typeof(TablePart)).Length)
+                                                                    .Select(x => new Table(x.TableParts[(int)TablePart.SchemaName],
+                                                                                            x.TableParts[(int)TablePart.TableName],
+                                                                                            x.Identity))
+                                                                    .ToList();
+
+            List<string> errorMessages = GetFileErrors(lines, period, Enum.GetValues(typeof(TablePart)).Length, "schema/table format");
 
             if (errorMessages.Any())
             {
@@ -266,14 +278,13 @@ namespace TablePopulation
         {
             public string SchemaName { get; }
             public string TableName { get; }
-            public string IdentityFlag { get; }
-            public bool HasIdentity => IdentityFlag == "1";
+            public bool HasIdentity { get; }
 
-            public Table(string schemaName, string tableName, string identityFlag = "1")
+            public Table(string schemaName, string tableName, bool hasIdentity)
             {
                 SchemaName = schemaName;
                 TableName = tableName;
-                IdentityFlag = identityFlag;
+                HasIdentity = hasIdentity;
             }
         }
 
