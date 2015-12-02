@@ -27,6 +27,113 @@ namespace TablePopulation
 
         #region Methods
 
+        private static TableFileResult GetTablesToPopulate()
+        {
+            string fileName = "TablesToPopulate.supersecret";
+
+            List<string> lines = GetFileLines(fileName);
+            const char separator = '.';
+
+            List<Table> tablesToPopulate = lines.Where(line => line.Split(separator).Length == Enum.GetValues(typeof(TablePart)).Length)
+                                                .Select(validLine => validLine.Split(separator))
+                                                .Select(parts => new Table(parts[(int)TablePart.SchemaName],
+                                                                            parts[(int)TablePart.TableName]))
+                                                .ToList();
+
+            List<string> errorMessages = GetFileErrors(lines, separator, Enum.GetValues(typeof(TablePart)).Length, "schema/table format");
+
+            if (errorMessages.Any())
+            {
+                Console.WriteLine($"Error: Invalid schema/table format in TablesToPopulate file.");
+            }
+
+            TableFileResult result = new TableFileResult(tablesToPopulate, errorMessages);
+
+            return result;
+        }
+
+        private static List<string> GetFileLines(string fileName)
+        {
+            List<string> fileLines = new List<string>();
+
+            const char backSlash = '\\';
+            DirectoryInfo directoryInfo = new DirectoryInfo($"{CurrentDirectory}{backSlash}{Folder.Inputs}");
+
+            if (directoryInfo.Exists)
+            {
+                FileInfo file = directoryInfo.GetFiles(fileName).FirstOrDefault();
+
+                if (file == null)
+                {
+                    Console.WriteLine($"File does not exist: {directoryInfo.FullName}{backSlash}{fileName}");
+                }
+                else
+                {
+                    fileLines = File.ReadAllLines(file.FullName)
+                                            .Where(line => !string.IsNullOrWhiteSpace(line)
+                                                            && !line.StartsWith("--")
+                                                            && !line.StartsWith("//")
+                                                            && !line.StartsWith("'"))
+                                            .ToList();
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Directory does not exist: {directoryInfo.FullName}");
+            }
+
+            return fileLines;
+        }
+
+        private static List<string> GetFileErrors(List<string> fileLines, char separator, int length, string description)
+        {
+            List<string> errorMessages = fileLines.Where(line => line.Split(separator).Length != length)
+                                                    .Select(invalidLine => $"Invalid {description}: {invalidLine}")
+                                                    .ToList();
+
+            return errorMessages;
+        }
+
+        private static string AppendLines(IEnumerable<string> input)
+        {
+            return input.Aggregate(new StringBuilder(), (current, next) => current.AppendLine(next)).ToString();
+        }
+
+        private static void HandleTopLevelError(string errorMessage, bool writeToConsole = true)
+        {
+            if (writeToConsole)
+            {
+                Console.WriteLine(errorMessage);
+            }
+
+            WriteToFile("Error", errorMessage);
+        }
+
+        private static void WriteToFile(string fileName, string fileContents)
+        {
+            const char backSlash = '\\';
+            string directory = $"{CurrentDirectory}{backSlash}{Folder.Outputs}";
+
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            string filePath = $"{directory}{backSlash}{fileName}.sql";
+
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            using (StreamWriter sw = File.CreateText(filePath))
+            {
+                sw.Write(fileContents);
+            }
+
+            Console.WriteLine($"Wrote file to {filePath}");
+        }
+
         private static DataTable GetDataTable(string queryText)
         {
             SqlConnection conn = new SqlConnection
