@@ -15,12 +15,9 @@ namespace TablePopulation
         {
             TableFileResult result = GetTablesToPopulate();
 
-            if (result.Tables.Any())
+            foreach (Table table in result.Tables)
             {
-                foreach (Table table in result.Tables)
-                {
-                    GenerateInsertScripts(table);
-                }
+                GenerateInsertScripts(table);
             }
 
             if (result.Errors.Any())
@@ -32,6 +29,7 @@ namespace TablePopulation
                 HandleTopLevelError("No tables to compare!");
             }
 
+            //TODO: Add silent mode
             Console.WriteLine("Press enter to exit:");
             Console.Read();
         }
@@ -117,7 +115,7 @@ namespace TablePopulation
 
         private static TableFileResult GetTablesToPopulate()
         {
-            string fileName = "TablesToPopulate.supersecret";
+            const string fileName = "TablesToPopulate.supersecret";
 
             List<string> lines = GetFileLines(fileName);
             const char comma = ',';
@@ -127,7 +125,7 @@ namespace TablePopulation
                                                 {
                                                     TableName = parts[0],
                                                     Identity = parts.Length == 1 //assume identity if not specified
-                                                            || (parts.Length == 2 && parts[1] == Convert.ToInt32(true).ToString())
+                                                            || (parts.Length == 2 && parts[1].Trim() == Convert.ToInt32(true).ToString())
                                                 })
                                                 .ToList();
 
@@ -144,7 +142,8 @@ namespace TablePopulation
 
             if (errorMessages.Any())
             {
-                Console.WriteLine($"Error: Invalid schema/table format in TablesToPopulate file.");
+                //TODO: Write error messages to file
+                Console.WriteLine("Error: Invalid schema/table format in TablesToPopulate file.");
             }
 
             TableFileResult result = new TableFileResult(tablesToPopulate, errorMessages);
@@ -251,6 +250,7 @@ namespace TablePopulation
             }
             catch (Exception ex)
             {
+                //TODO: Write error messages to file
                 Console.WriteLine(ex.Message);
             }
             finally
@@ -265,7 +265,6 @@ namespace TablePopulation
 
         #region Properties
 
-        //In LINQPad: private static string CurrentDirectory => Path.GetDirectoryName(Util.CurrentQueryPath);
         private static string CurrentDirectory => Directory.GetCurrentDirectory();  //bin\Debug
 
         private static string Tab => new string(' ', 4);
