@@ -30,8 +30,8 @@ namespace TablePopulation
             }
 
             //TODO: Add silent mode
-            Console.WriteLine("Press enter to exit:");
-            Console.Read();
+            //Console.WriteLine("Press enter to exit:");
+            //Console.Read();
         }
 
         #region Methods
@@ -42,11 +42,11 @@ namespace TablePopulation
             DataTable dt = GetDataTable(queryText);
 
             List<DataRow> rows = dt.Rows.Cast<DataRow>().OrderBy(r => r.ItemArray[0]).ToList();
-            List<DataColumn> columns = dt.Columns.Cast<DataColumn>().ToList();
+            List<Column> columns = GetColumnsForInsert(table);
 
             List<string> fileLines = new List<string>();
 
-            if (table.HasIdentity)
+            if (columns.Any(c => c.IsIdentity))
             {
                 fileLines.Add($"SET IDENTITY_INSERT {table.SchemaName}.{table.TableName} ON");
                 fileLines.Add("");
@@ -57,7 +57,7 @@ namespace TablePopulation
                 fileLines.AddRange(GetInsertScript(row, columns, table));
             }
 
-            if (table.HasIdentity)
+            if (columns.Any(c => c.IsIdentity))
             {
                 fileLines.Add($"SET IDENTITY_INSERT {table.SchemaName}.{table.TableName} OFF");
                 fileLines.Add("");
@@ -74,7 +74,25 @@ namespace TablePopulation
             WriteToFile(fileName, fileContents);
         }
 
-        private static List<string> GetInsertScript(DataRow row, List<DataColumn> columns, Table table)
+        private static List<Column> GetColumnsForInsert(Table table)
+        {
+            string queryText = $@"SELECT c.name, c.system_type_id, c.is_identity{
+                Environment.NewLine}FROM sys.columns c{
+                Environment.NewLine}INNER JOIN sys.tables t{
+                Environment.NewLine}ON c.object_id = t.object_id{
+                Environment.NewLine}INNER JOIN sys.schemas s{
+                Environment.NewLine}ON t.schema_id = s.schema_id{
+                Environment.NewLine}WHERE s.name = '{table.SchemaName}'{
+                Environment.NewLine}AND t.name = '{table.TableName}'{
+                Environment.NewLine}AND is_computed = 0";
+
+            DataTable dt = GetDataTable(queryText);
+            List<Column> columns = dt.Rows.Cast<DataRow>().Select(dr => new Column(dr)).ToList();
+
+            return columns;
+        }
+
+        private static List<string> GetInsertScript(DataRow row, List<Column> columns, Table table)
         {
             List<string> scriptLines = new List<string>();
 
@@ -96,12 +114,12 @@ namespace TablePopulation
             return scriptLines;
         }
 
-        private static string GetColumnValue(DataRow row, DataColumn column)
+        private static string GetColumnValue(DataRow row, Column column)
         {
-            string input = row[column].ToString();
+            string input = row[column.ColumnName].ToString();
             string output;
 
-            if (column.DataType == typeof(bool))
+            if (column.SystemTypeID == (int)DataType.Bit)
             {
                 output = Convert.ToInt32(bool.Parse(input)).ToString();
             }
@@ -118,25 +136,12 @@ namespace TablePopulation
             const string fileName = "TablesToPopulate.supersecret";
 
             List<string> lines = GetFileLines(fileName);
-            const char comma = ',';
-
-            var fileLines = lines.Select(line => line.Split(comma))
-                                                .Select(parts => new
-                                                {
-                                                    TableName = parts[0],
-                                                    Identity = parts.Length == 1 //assume identity if not specified
-                                                            || (parts.Length == 2 && parts[1].Trim() == Convert.ToInt32(true).ToString())
-                                                })
-                                                .ToList();
-
             const char period = '.';
 
-            List<Table> tablesToPopulate = fileLines.Select(line => new { TableParts = line.TableName.Split(period), line.Identity })
-                                                                    .Where(x => x.TableParts.Length == Enum.GetValues(typeof(TablePart)).Length)
-                                                                    .Select(x => new Table(x.TableParts[(int)TablePart.SchemaName],
-                                                                                            x.TableParts[(int)TablePart.TableName],
-                                                                                            x.Identity))
-                                                                    .ToList();
+            List<Table> tables = lines.Select(line => line.Split(period).ToList())
+                                        .Where(parts => parts.Count == Enum.GetValues(typeof(TablePart)).Length)
+                                        .Select(parts => new Table(parts))
+                                        .ToList();
 
             List<string> errorMessages = GetFileErrors(lines, period, Enum.GetValues(typeof(TablePart)).Length, "schema/table format");
 
@@ -146,7 +151,7 @@ namespace TablePopulation
                 Console.WriteLine("Error: Invalid schema/table format in TablesToPopulate file.");
             }
 
-            TableFileResult result = new TableFileResult(tablesToPopulate, errorMessages);
+            TableFileResult result = new TableFileResult(tables, errorMessages);
 
             return result;
         }
@@ -213,6 +218,8 @@ namespace TablePopulation
             const char backSlash = '\\';
             string directory = $"{CurrentDirectory}{backSlash}{Folder.Outputs}";
 
+            //TODO: Create subdirectory for each schema
+
             if (!Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
@@ -277,13 +284,11 @@ namespace TablePopulation
         {
             public string SchemaName { get; }
             public string TableName { get; }
-            public bool HasIdentity { get; }
 
-            public Table(string schemaName, string tableName, bool hasIdentity)
+            public Table(List<string> parts)
             {
-                SchemaName = schemaName;
-                TableName = tableName;
-                HasIdentity = hasIdentity;
+                SchemaName = parts[(int)TablePart.SchemaName].Trim();
+                TableName = parts[(int)TablePart.TableName].Trim();
             }
         }
 
@@ -296,6 +301,20 @@ namespace TablePopulation
             {
                 Tables = tables;
                 Errors = errors;
+            }
+        }
+
+        private class Column
+        {
+            public string ColumnName { get; }
+            public int SystemTypeID { get; }
+            public bool IsIdentity { get; }
+
+            public Column(DataRow dr)
+            {
+                ColumnName = dr["name"].ToString();
+                SystemTypeID = int.Parse(dr["system_type_id"].ToString());
+                IsIdentity = bool.Parse(dr["is_identity"].ToString());
             }
         }
 
@@ -313,6 +332,20 @@ namespace TablePopulation
         {
             Inputs,
             Outputs
+        }
+
+        private enum DataType
+        {
+            Uniqueidentifier = 36,
+            Date = 40,
+            Integer = 56,
+            Datetime = 61,
+            Bit = 104,
+            Dec = 106,
+            Numeric = 108,
+            Varchar = 167,
+            Character = 175,
+            Nvarchar = 231
         }
 
         #endregion
